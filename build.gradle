@@ -17,6 +17,7 @@ java {
 dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter:5.7.0'
     testImplementation 'org.hamcrest:hamcrest-library:2.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.7.0'
 }
 
 tasks.withType(Test) {
@@ -31,3 +32,79 @@ application { //Allows  ./gradlew run --args=path-to-test-data
     mainClass = 'edu.odu.cs.MostCommonWords'
 }
 
+// Copy website files into build/reports
+task copyHtml(type: Copy) {
+    from 'src/main/html'
+    into 'build/reports'
+}
+
+// Copy JavaDoc into build/reports
+task copyJavadoc(type: Copy, dependsOn: 'javadoc') {
+    from 'build/docs'
+    into 'build/reports'
+}
+
+// Generate everything needed for the website
+task reports(dependsOn: ['build', 'copyHtml', 'copyJavadoc'])
+
+// Location of temporary gh-pages working tree
+def pagesDir = file("${project.rootDir}/build/website-temp").absolutePath
+
+// Remove any previous temporary directory
+task clearPages(type: Delete) {
+    delete pagesDir
+}
+
+// Create a separate working tree for gh-pages
+task workTreeAdd(type: Exec, dependsOn: ['clearPages']) {
+    workingDir = '.'
+    commandLine = ['git', 'worktree', 'add', '-f', pagesDir, 'gh-pages']
+}
+
+task workTreeCheckout(type: Exec, dependsOn: ['workTreeAdd']) {
+    workingDir = pagesDir
+    commandLine = ['git', 'checkout', 'gh-pages']
+}
+
+task workTree(type: Exec, dependsOn: ['workTreeCheckout']) {
+    workingDir = pagesDir
+    commandLine = ['git', 'pull']
+}
+
+// Copy generated reports into gh-pages
+task copyReports(type: Copy, dependsOn: ['reports', 'workTree']) {
+    from 'build/reports'
+    into pagesDir
+}
+
+// Stage changes
+task stageWebsite(type: Exec, dependsOn: ['copyReports']) {
+    workingDir = pagesDir
+    commandLine = ['git', 'add', '-A']
+}
+
+// Commit changes
+task commitWebsite(type: Exec, dependsOn: ['stageWebsite']) {
+    workingDir = pagesDir
+    commandLine = ['git', 'commit', '-m', 'Updating website']
+    ignoreExitValue = true
+}
+
+// Push changes to GitHub
+task pushWebsite(type: Exec, dependsOn: ['commitWebsite']) {
+    workingDir = pagesDir
+    commandLine = ['git', 'push']
+}
+
+// Clean up temporary working tree
+task cleanWorkTree(type: Delete, dependsOn: ['pushWebsite']) {
+    delete pagesDir
+}
+
+// Final deployment task
+task deployReports(type: Exec, dependsOn: ['cleanWorkTree']) {
+    group = "Reporting"
+    description = 'Commit and push website changes to GitHub'
+    workingDir = '.'
+    commandLine = ['git', 'worktree', 'prune']
+}

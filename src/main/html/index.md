@@ -1,6 +1,6 @@
 # Project Reports
 
-Your Name
+Hope Chandler
 
 * [Tests](./reports/tests/test/)
 * [JavaDoc](./reports/javadoc/)
